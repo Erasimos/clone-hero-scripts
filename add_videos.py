@@ -1,9 +1,10 @@
 import os
 import re
-import time
-import yt_dlp
-from mutagen.oggopus import OggOpus
-from moviepy import VideoFileClip
+import subprocess
+
+def clear_dir(dir: str):
+    for file in os.listdir(dir):
+        os.remove(os.path.join(dir, file))
 
 def get_song_info(song_dir: str):
     
@@ -22,47 +23,85 @@ def video_exists(song_dir: str):
             return True
     return False
 
+def convert_av1_to_h264(video_file):
+    command = [
+        "ffmpeg",
+        "-i", video_file,
+        "-c:v", "libx264",
+        "-preset", "ultrafast",
+        "-crf", "23",
+        "-c:a", "aac",
+        "-strict", "experimental",
+        video_file
+    ]
+    subprocess.run(command)
+    print(f"Conversion to H.264 completed: {video_file}")
 
-def download_video(song: str, artist: str, dest: str):
-    video_file = os.path.join(dest, song + '-' + artist + '.mp4')
-    search_query = f"{artist} {song} music video"
-    ydl_opts = {
-        'outtmpl': video_file,
-        'noplaylist': True,
-    }
+def download_video(song: str, artist:str, dest:str):
 
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        result = ydl.extract_info(f"ytsearch:{search_query}", download=False)
-        
-        video_url = result.get('entries', [{}])[0].get('url')
-        if video_url:
-            ydl.download([video_url])
-            print(f"Video downloaded for: {song} by {artist}")
-        else:
-            print(f"No video found for: {song} by {artist}")
+    search_query = f"{artist} {song}"
+    video_file = f"{os.path.join(dest, search_query)}.mp4"
 
-    return video_file
+    command = [
+        "yt-dlp",
+        f"ytsearch:{f"{search_query} music video"}",
+        "--no-playlist",
+        "-f" "bestaudio[ext=m4a]+bestvideo[ext=mp4]/mp4"
+        "--quiet",
+        "--output", video_file
+    ]
+
+    result = subprocess.run(command, capture_output=True, text=True)
+    if result.returncode == 0:
+        print(f"Video downloaded successfully to {video_file}")
+
+        if "av01" in result.stderr:
+            convert_av1_to_h264(video_file)
+
+        return video_file
+    else:
+        print("Error during download: ", result.stderr)
+        return None
+
+
+def get_audio_duration(opus_file):
+    command = [
+        "ffprobe",
+        "-i", opus_file,
+        "-show_entries", "format=duration",
+        "-v", "quiet",
+        "-of", "csv=p=0"
+    ]
+    result = subprocess.run(command, capture_output=True, text=True)
+    duration = float(result.stdout.strip())
+    return duration
 
 def mute_and_trim_video(video_file, opus_file, song_folder):
 
-    # Mute
-    video = VideoFileClip(video_file)
-    video = video.without_audio()
+    audio_length = get_audio_duration(opus_file)
+    output_file = os.path.join(song_folder, 'video.mp4')
 
-    # Trim
-    audio = OggOpus(opus_file)
-    audio_length = audio.info.length
-    if audio_length > video.duration:
-        video = video.subclipped(0, audio_length)
+    command = [
+        "ffmpeg",                       # Call ffmpeg
+        "-ss", "0",                     # Start time (0 means starting from the beginning)
+        "-i", video_file,               # Input video file
+        "-t", str(audio_length),        # Duration of the video (trim based on audio length)
+        "-an",                          # Remove audio (mute the video)
+        "-c:v", "copy",              # Use the H.264 codec for the video
+        "-preset", "ultrafast",              # Fast encoding preset (balance between speed and quality)
+        "-crf", "28",                   # Constant Rate Factor (quality, lower is better, 23 is default)
+        "-r", "30",                     # Set the frame rate to 30fps (optional, based on your needs)
+        output_file                     # Output file
+    ]
 
-    video.write_videofile(os.path.join(song_folder, 'video.mp4'))
-    video.close()
+    subprocess.run(command)
 
 def add_music_videos(dir: str):
     
     # Create tmp folder for downloaded music videos
     script_dir = os.path.dirname(os.path.realpath(__file__))
     tmp_dir = os.path.join(script_dir, 'tmp')
+
     os.makedirs(tmp_dir, exist_ok=True)
 
     for song_folder in os.listdir(dir):
@@ -95,6 +134,8 @@ def add_music_videos(dir: str):
                 print(f"Skipping folder: {song_folder}")
         else:
             print(f"Skipping non-directory: {song_folder_path }")
+
+    clear_dir(tmp_dir)
 
 
 if __name__ == "__main__":
