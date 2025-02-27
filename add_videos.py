@@ -2,6 +2,23 @@ import os
 import re
 import subprocess
 
+QUALITY = "medium" # Set to low, medium, high, to ajdust music video quality
+
+def get_quality_settings():
+    """Returns encoding settings based on global QUALITY variable."""
+    quality_presets = {
+        "low": {
+            "crf": "30", "bitrate": "1.5M", "preset": "faster",
+        },
+        "medium": {
+            "crf": "26", "bitrate": "3M", "preset": "veryfast",
+        },
+        "high": {
+            "crf": "22", "bitrate": "5M", "preset": "slow",
+        },
+    }
+    return quality_presets.get(QUALITY, quality_presets["medium"])
+
 def clear_dir(dir: str):
     for file in os.listdir(dir):
         os.remove(os.path.join(dir, file))
@@ -43,17 +60,19 @@ def video_exists(song_dir: str):
 
 def convert_av1_to_h264(video_file: str):
 
+    settings = get_quality_settings()
+
     converted_video_file = video_file.replace('.mp4', "_h264.mp4")
 
     command = [
         "ffmpeg",
         "-i", video_file,
         "-c:v", "libx264",
-        "-preset", "veryfast",
-        "-crf", "28",
+        "-preset", settings["preset"],
+        "-crf", settings["crf"],
         "-c:a", "aac",
         "-b:a", "128k",
-        "-b:v", "2M",
+        "-b:v", settings["bitrate"],
         "-strict", "experimental",
         converted_video_file
     ]
