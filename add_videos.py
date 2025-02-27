@@ -6,6 +6,24 @@ def clear_dir(dir: str):
     for file in os.listdir(dir):
         os.remove(os.path.join(dir, file))
 
+
+def is_av1_encoded(video_file):
+    command = [
+        "ffprobe",
+        "-v", "error",
+        "-select_streams", "v:0",
+        "-show_entries", "stream=codec_name",
+        "-of", "csv=p=0",
+        video_file
+    ]
+
+    result = subprocess.run(command, capture_output=True, text=True)
+    codec = result.stdout.strip()
+
+    print("CODEC: ", codec)
+
+    return codec == "av1"
+
 def get_song_info(song_dir: str):
     
     re_match = re.match(r"^(.*) - (.*) \(.+\)", song_dir)
@@ -23,19 +41,25 @@ def video_exists(song_dir: str):
             return True
     return False
 
-def convert_av1_to_h264(video_file):
+def convert_av1_to_h264(video_file: str):
+
+    converted_video_file = video_file.replace('.mp4', "_h264.mp4")
+
     command = [
         "ffmpeg",
         "-i", video_file,
         "-c:v", "libx264",
-        "-preset", "ultrafast",
-        "-crf", "23",
+        "-preset", "veryfast",
+        "-crf", "28",
         "-c:a", "aac",
+        "-b:a", "128k",
+        "-b:v", "2M",
         "-strict", "experimental",
-        video_file
+        converted_video_file
     ]
     subprocess.run(command)
     print(f"Conversion to H.264 completed: {video_file}")
+    return converted_video_file
 
 def download_video(song: str, artist:str, dest:str):
 
@@ -44,7 +68,7 @@ def download_video(song: str, artist:str, dest:str):
 
     command = [
         "yt-dlp",
-        f"ytsearch:{f"{search_query} music video"}",
+        f"ytsearch:{search_query} music video",
         "--no-playlist",
         "-f" "bestaudio[ext=m4a]+bestvideo[ext=mp4]/mp4"
         "--quiet",
@@ -55,9 +79,9 @@ def download_video(song: str, artist:str, dest:str):
     if result.returncode == 0:
         print(f"Video downloaded successfully to {video_file}")
 
-        if "av01" in result.stderr:
-            convert_av1_to_h264(video_file)
-
+        if is_av1_encoded(video_file):
+            print("AV1 detected, converting to H.264...")
+            video_file = convert_av1_to_h264(video_file)
         return video_file
     else:
         print("Error during download: ", result.stderr)
@@ -139,6 +163,5 @@ def add_music_videos(dir: str):
 
 
 if __name__ == "__main__":
-    #clone_hero_dir = os.path.dirname(os.path.realpath(__file__))
-    clone_hero_dir = 'C:/Users/rasmu/Downloads/clone_hero'
-    add_music_videos(clone_hero_dir)
+    clone_hero_songs_dir = 'C:/Users/rasmu/Documents/ch_songs'
+    add_music_videos(clone_hero_songs_dir)
