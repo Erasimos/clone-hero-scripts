@@ -4,6 +4,8 @@ import subprocess
 
 QUALITY = "medium" # Set to low, medium, high, to ajdust music video quality
 
+SONGS_COUNTER = 0
+
 def get_quality_settings():
     """Returns encoding settings based on global QUALITY variable."""
     quality_presets = {
@@ -48,8 +50,8 @@ def get_song_info(song_dir: str):
         artist = re_match.group(1).strip()
         song = re_match.group(2).strip()
         return artist, song
-    print("Error: could not extract song name or artist")
-    return None, None
+    print("Error: could not extract song name or artist, returning: ", song_dir)
+    return song_dir, ' '
 
 # Maybe add check for multiple video formats
 def video_exists(song_dir: str):
@@ -82,8 +84,12 @@ def convert_av1_to_h264(video_file: str):
 
 def download_video(song: str, artist:str, dest:str):
 
+    global SONGS_COUNTER
+
     search_query = f"{artist} {song}"
-    video_file = f"{os.path.join(dest, search_query)}.mp4"
+    video_file = f"{os.path.join(dest, search_query)}{str(SONGS_COUNTER)}.mp4"
+
+    SONGS_COUNTER += 1
 
     command = [
         "yt-dlp",
@@ -154,27 +160,23 @@ def add_music_videos(dir: str):
 
             song, artist = get_song_info(song_folder)
 
-            if song and artist:
-                opus_file = None
-                for file in os.listdir(song_folder_path):
-                    if file == 'song.opus':
-                        opus_file = os.path.join(song_folder_path, file)
-                        break
-                
-                if opus_file:
-                    if video_exists(song_folder_path):
-                        print(f"Video already exist for: {song} by {artist}")
-                        continue
-                    else:
+            opus_file = None
+            for file in os.listdir(song_folder_path):
+                if file == 'song.opus' or file == 'song.ogg':
+                    opus_file = os.path.join(song_folder_path, file)
+                    break
+            
+            if opus_file:
+                if video_exists(song_folder_path):
+                    print(f"Video already exist for: {song} by {artist}")
+                    continue
+                else:
 
-                        video_file = download_video(song, artist, tmp_dir)
-                        if video_file:
-                            mute_and_trim_video(video_file, opus_file, song_folder_path)
-                        else:
-                            print(f"Failed to download video for: {song} by {artist}")
-                        
-            else:
-                print(f"Skipping folder: {song_folder}")
+                    video_file = download_video(song, artist, tmp_dir)
+                    if video_file:
+                        mute_and_trim_video(video_file, opus_file, song_folder_path)
+                    else:
+                        print(f"Failed to download video for: {song} by {artist}")
         else:
             print(f"Skipping non-directory: {song_folder_path }")
 
@@ -182,5 +184,6 @@ def add_music_videos(dir: str):
 
 
 if __name__ == "__main__":
-    clone_hero_songs_dir = 'C:/Users/rasmu/Documents/ch_songs'
+    clone_hero_songs_dir = 'D:/Clone Hero/'
     add_music_videos(clone_hero_songs_dir)
+    print("Done ", SONGS_COUNTER, " music videos added")
