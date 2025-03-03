@@ -50,7 +50,7 @@ def get_song_info(song_dir: str):
         artist = re_match.group(1).strip()
         song = re_match.group(2).strip()
         return artist, song
-    print("Error: could not extract song name or artist, returning: ", song_dir)
+    print("could not extract song name or artist, returning: ", song_dir)
     return song_dir, ' '
 
 # Maybe add check for multiple video formats
@@ -113,10 +113,10 @@ def download_video(song: str, artist:str, dest:str):
         return None
 
 
-def get_audio_duration(opus_file):
+def get_audio_duration(audio_file):
     command = [
         "ffprobe",
-        "-i", opus_file,
+        "-i", audio_file,
         "-show_entries", "format=duration",
         "-v", "quiet",
         "-of", "csv=p=0"
@@ -125,9 +125,9 @@ def get_audio_duration(opus_file):
     duration = float(result.stdout.strip())
     return duration
 
-def mute_and_trim_video(video_file, opus_file, song_folder):
+def mute_and_trim_video(video_file, audio_file, song_folder):
 
-    audio_length = get_audio_duration(opus_file)
+    audio_length = get_audio_duration(audio_file)
     output_file = os.path.join(song_folder, 'video.mp4')
 
     command = [
@@ -160,13 +160,13 @@ def add_music_videos(dir: str):
 
             song, artist = get_song_info(song_folder)
 
-            opus_file = None
+            audio_file = None
             for file in os.listdir(song_folder_path):
                 if file == 'song.opus' or file == 'song.ogg':
-                    opus_file = os.path.join(song_folder_path, file)
+                    audio_file = os.path.join(song_folder_path, file)
                     break
             
-            if opus_file:
+            if audio_file:
                 if video_exists(song_folder_path):
                     print(f"Video already exist for: {song} by {artist}")
                     continue
@@ -174,7 +174,7 @@ def add_music_videos(dir: str):
 
                     video_file = download_video(song, artist, tmp_dir)
                     if video_file:
-                        mute_and_trim_video(video_file, opus_file, song_folder_path)
+                        mute_and_trim_video(video_file, audio_file, song_folder_path)
                     else:
                         print(f"Failed to download video for: {song} by {artist}")
         else:
